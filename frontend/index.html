@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomous Production Planning & Dispatching Agent</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --accent-glow: rgba(88, 166, 255, 0.2);
+      --success: #238636;
+      --warning: #d29922;
+      --danger: #da3633;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 18px; margin-bottom: 24px; }
+    .badge { background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+    
+    .grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    h2 { font-size: 16px; font-weight: 600; color: var(--text-bright); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+    
+    .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .kpi-card { background: #21262d; border-radius: 6px; padding: 12px; text-align: center; }
+    .kpi-val { font-size: 22px; font-weight: 700; color: var(--text-bright); }
+    .kpi-label { font-size: 11px; text-transform: uppercase; color: #8b949e; margin-top: 4px; }
+
+    input, select, textarea, button { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); background: #0d1117; color: var(--text-bright); font-size: 13px; margin-bottom: 12px; outline: none; }
+    button { background: var(--success); border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    button:hover { filter: brightness(1.15); }
+    button.btn-accent { background: #1f6feb; }
+    button.btn-danger { background: var(--danger); }
+
+    /* Gantt Area */
+    .gantt-container { overflow-x: auto; background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 16px; position: relative; min-height: 480px; }
+    .gantt-row { display: flex; align-items: center; margin-bottom: 10px; height: 32px; position: relative; }
+    .machine-label { width: 110px; font-size: 12px; font-weight: 600; color: #8b949e; flex-shrink: 0; }
+    .timeline-track { flex-grow: 1; height: 100%; position: relative; background: #161b22; border-radius: 4px; border: 1px solid #21262d; min-width: 800px; }
+    
+    .gantt-bar { position: absolute; height: 80%; top: 10%; border-radius: 3px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; transition: transform 0.15s; text-shadow: 0 1px 2px rgba(0,0,0,0.5); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px; }
+    .gantt-bar:hover { transform: scaleY(1.15); z-index: 10; box-shadow: 0 0 8px rgba(255,255,255,0.4); }
+
+    .downtime-block { background: repeating-linear-gradient(45deg, #da3633, #da3633 8px, #8e1a17 8px, #8e1a17 16px) !important; color: #fff; font-weight: bold; }
+
+    /* Color classes for orders */
+    .ord-101 { background: #1f6feb; border: 1px solid #388bfd; }
+    .ord-102 { background: #8957e5; border: 1px solid #a371f7; }
+    .ord-103 { background: #238636; border: 1px solid #2ea043; }
+    .ord-104 { background: #d29922; border: 1px solid #e3b341; }
+    .ord-105 { background: #f0883e; border: 1px solid #f99b54; }
+
+    .agent-log { background: #010409; border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; color: #7ee787; max-height: 120px; overflow-y: auto; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; font-size: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1 style="font-size: 20px; color: var(--text-bright);">Autonomous Production Planning & Dispatching Agent</h1>
+      <p style="font-size: 13px; color: #8b949e; margin-top: 4px;">Hardware Assembly Line Optimization • Google OR-Tools CP-SAT Solver • LLM Agent Layer</p>
+    </div>
+    <span class="badge">Factory Engine Online</span>
+  </header>
+
+  <div class="grid">
+    <!-- Left Column: Controls -->
+    <div>
+      <!-- Natural Language Agent Control -->
+      <div class="card">
+        <h2>Shop-Floor Agent Command <span style="font-size: 11px; color: var(--accent);">LLM Interface</span></h2>
+        <textarea id="agentPrompt" rows="3" placeholder="e.g.: Machine CP-01 down from 60 to 180 and rush order ORD-103"></textarea>
+        <button class="btn-accent" onclick="sendAgentCommand()">Dispatch Agent Instruction</button>
+        <div class="agent-log" id="agentLog">Agent ready for instructions...</div>
+      </div>
+
+      <!-- What-If Disruption Simulator -->
+      <div class="card">
+        <h2>What-If Scenario Simulator</h2>
+        <label style="font-size: 11px; color: #8b949e;">Simulate Machine Failure</label>
+        <select id="simMachine">
+          <option value="CP-01">CP-01 (GPU & Component Bay 1)</option>
+          <option value="MB-02">MB-02 (Motherboard Prep Bay 2)</option>
+          <option value="QA-01">QA-01 (Burn-In Stress Bench 1)</option>
+          <option value="CH-01">CH-01 (Chassis Mount Bay 1)</option>
+        </select>
+        <div style="display: flex; gap: 8px;">
+          <div>
+            <label style="font-size: 10px; color: #8b949e;">Start (Min)</label>
+            <input type="number" id="simStart" value="60">
+          </div>
+          <div>
+            <label style="font-size: 10px; color: #8b949e;">End (Min)</label>
+            <input type="number" id="simEnd" value="180">
+          </div>
+        </div>
+        <button class="btn-danger" onclick="runSimulation()">Run What-If Impact</button>
+      </div>
+
+      <!-- Quick Reset -->
+      <div class="card">
+        <h2>Solver Control</h2>
+        <button onclick="fetchSchedule()">Recalculate Optimal Schedule</button>
+      </div>
+    </div>
+
+    <!-- Right Column: Gantt & Metrics -->
+    <div>
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiMakespan">--</div>
+          <div class="kpi-label">Total Makespan (Mins)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiDelayed">--</div>
+          <div class="kpi-label">Delayed Orders</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpiSolveTime">--</div>
+          <div class="kpi-label">Solve Duration</div>
+        </div>
+      </div>
+
+      <!-- Gantt Chart Container -->
+      <div class="card">
+        <h2>Assembly Line Gantt Schedule <span style="font-size: 11px; color: #8b949e;">Horizontal Axis: Shift Timeline (Minutes)</span></h2>
+        <div class="gantt-container" id="ganttTrack">
+          <!-- Rows will be injected dynamically -->
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><div class="legend-color ord-101"></div>ORD-101 (Galleria Titan)</div>
+          <div class="legend-item"><div class="legend-color ord-102"></div>ORD-102 (AI-Workstation)</div>
+          <div class="legend-item"><div class="legend-color ord-103"></div>ORD-103 (Raytrek Studio)</div>
+          <div class="legend-item"><div class="legend-color ord-104"></div>ORD-104 (Monarch Slim)</div>
+          <div class="legend-item"><div class="legend-color ord-105"></div>ORD-105 (Galleria Esports)</div>
+          <div class="legend-item"><div class="legend-color downtime-block" style="width: 16px; height: 12px;"></div>Downtime / Breakdown</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "";
+    const MACHINES = [
+      "MB-01", "MB-02", "CH-01", "CH-02", "CP-01", "CP-02", "WR-01", "QA-01", "QA-02", "QA-03", "PK-01", "PK-02"
+    ];
+
+    async function fetchSchedule() {
+      try {
+        const res = await fetch(`${API_BASE}/api/schedule`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        renderSchedule(data);
+      } catch (err) {
+        console.error("Failed to fetch schedule:", err);
+      }
+    }
+
+    async function sendAgentCommand() {
+      const prompt = document.getElementById("agentPrompt").value.trim();
+      if (!prompt) return;
+      document.getElementById("agentLog").innerText = "Agent reasoning and invoking solver...";
+      try {
+        const res = await fetch(`${API_BASE}/api/agent/command`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({command: prompt})
+        });
+        const data = await res.json();
+        document.getElementById("agentLog").innerText = `Reasoning: ${data.intent_parsed.reasoning}\nDecision: ${data.message}`;
+        renderSchedule(data.solution);
+      } catch (err) {
+        document.getElementById("agentLog").innerText = "Error executing agent instruction: " + err;
+      }
+    }
+
+    async function runSimulation() {
+      const machineId = document.getElementById("simMachine").value;
+      const start = parseInt(document.getElementById("simStart").value);
+      const end = parseInt(document.getElementById("simEnd").value);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/simulate/whatif`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            machine_id: machineId,
+            downtime_start: start,
+            downtime_end: end
+          })
+        });
+        const data = await res.json();
+        const diff = data.impact_summary;
+        document.getElementById("agentLog").innerText = 
+          `What-If Impact: Makespan changed by ${diff.makespan_delta_minutes}m (${diff.makespan_increase_pct}%). New delayed orders: ${diff.delayed_orders_delta}`;
+        renderSchedule(data.simulated);
+      } catch (err) {
+        alert("Simulation error: " + err);
+      }
+    }
+
+    function renderSchedule(data) {
+      document.getElementById("kpiMakespan").innerText = data.metrics.makespan_minutes + "m";
+      document.getElementById("kpiDelayed").innerText = data.metrics.delayed_orders;
+      document.getElementById("kpiSolveTime").innerText = (data.metrics.solver_wall_time_seconds * 1000).toFixed(1) + "ms";
+
+      const maxTime = Math.max(data.metrics.makespan_minutes + 30, 480);
+      const container = document.getElementById("ganttTrack");
+      container.innerHTML = "";
+
+      MACHINES.forEach(mId => {
+        const row = document.createElement("div");
+        row.className = "gantt-row";
+        
+        const label = document.createElement("div");
+        label.className = "machine-label";
+        label.innerText = mId;
+        row.appendChild(label);
+
+        const track = document.createElement("div");
+        track.className = "timeline-track";
+
+        // Render applied downtimes
+        (data.downtimes_applied || []).forEach(dt => {
+          if (dt.machine_id === mId) {
+            const dtEl = document.createElement("div");
+            dtEl.className = "gantt-bar downtime-block";
+            const leftPct = (dt.start_minute / maxTime) * 100;
+            const widthPct = ((dt.end_minute - dt.start_minute) / maxTime) * 100;
+            dtEl.style.left = leftPct + "%";
+            dtEl.style.width = widthPct + "%";
+            dtEl.title = `Maintenance: ${dt.reason} (${dt.start_minute}m - ${dt.end_minute}m)`;
+            dtEl.innerText = "BREAKDOWN";
+            track.appendChild(dtEl);
+          }
+        });
+
+        // Render scheduled tasks
+        data.schedule.forEach(t => {
+          if (t.machine_id === mId) {
+            const bar = document.createElement("div");
+            const ordClass = t.order_id.toLowerCase().replace("-", "-");
+            bar.className = `gantt-bar ${ordClass}`;
+            
+            const leftPct = (t.start_minute / maxTime) * 100;
+            const widthPct = (t.duration_minutes / maxTime) * 100;
+            bar.style.left = leftPct + "%";
+            bar.style.width = Math.max(widthPct, 1.2) + "%";
+            bar.title = `${t.order_id}: ${t.task_name} (${t.start_minute}m - ${t.end_minute}m)`;
+            bar.innerText = `${t.order_id} - ${t.task_name}`;
+            track.appendChild(bar);
+          }
+        });
+
+        row.appendChild(track);
+        container.appendChild(row);
+      });
+    }
+
+    // Auto-fetch on initial page load
+    window.onload = fetchSchedule;
+  </script>
+</body>
+</html>
